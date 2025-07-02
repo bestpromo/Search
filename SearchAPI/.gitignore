@@ -1,6 +1,3 @@
-# Dependencies
-
-
 # Environment variables
 .env
 .env.local
