@@ -5,31 +5,30 @@ class RedisService {
   constructor() {
     this.client = null;
     this.isConnected = false;
+    this.enabled = process.env.REDIS_ENABLED !== 'false';
   }
 
   async connect() {
+    if (!this.enabled) {
+      logger.info('Redis is disabled, running without cache');
+      return;
+    }
+
     try {
       this.client = redis.createClient({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: process.env.REDIS_PORT || 6379,
-        password: process.env.REDIS_PASSWORD || undefined,
-        db: process.env.REDIS_DB || 0,
-        retry_strategy: (options) => {
-          if (options.error && options.error.code === 'ECONNREFUSED') {
-            logger.error('Redis connection refused');
-            return new Error('Redis server connection refused');
-          }
-          if (options.total_retry_time > 1000 * 60 * 60) {
-            logger.error('Redis retry time exhausted');
-            return new Error('Redis retry time exhausted');
-          }
-          if (options.attempt > 10) {
-            logger.error('Redis connection attempts exhausted');
-            return undefined;
-          }
-          // Reconnect after
-          return Math.min(options.attempt * 100, 3000);
-        }
+        url: `redis://${process.env.REDIS_PASSWORD ? ':' + process.env.REDIS_PASSWORD + '@' : ''}${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || 6379}/${process.env.REDIS_DB || 0}`,
+        socket: {
+          connectTimeout: 30000,
+          commandTimeout: 10000,
+          lazyConnect: false,
+          keepAlive: true,
+          noDelay: true,
+          reconnectDelay: 2000
+        },
+        retryDelayOnFailover: 1000,
+        maxRetriesPerRequest: 3,
+        enableReadyCheck: true,
+        lazyConnect: false
       });
 
       this.client.on('connect', () => {
@@ -38,7 +37,7 @@ class RedisService {
       });
 
       this.client.on('error', (err) => {
-        logger.error('Redis client error', { error: err.message });
+        logger.warn('Redis not available, running without cache', { error: err.message });
         this.isConnected = false;
       });
 
@@ -47,7 +46,13 @@ class RedisService {
         this.isConnected = false;
       });
 
-      await this.client.connect();
+      // Tentar conectar com timeout maior
+      const connectPromise = this.client.connect();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Redis connection timeout')), 30000)
+      );
+
+      await Promise.race([connectPromise, timeoutPromise]);
       logger.info('Redis connection established successfully');
       
     } catch (error) {
@@ -64,12 +69,11 @@ class RedisService {
   }
 
   isReady() {
-    return this.isConnected && this.client && this.client.isReady;
+    return this.enabled && this.isConnected && this.client && this.client.isReady;
   }
 
   async get(key) {
     if (!this.isReady()) {
-      logger.warn('Redis not ready, skipping get operation');
       return null;
     }
 
@@ -89,7 +93,6 @@ class RedisService {
 
   async set(key, value, ttl = null) {
     if (!this.isReady()) {
-      logger.warn('Redis not ready, skipping set operation');
       return false;
     }
 
@@ -108,7 +111,6 @@ class RedisService {
 
   async del(key) {
     if (!this.isReady()) {
-      logger.warn('Redis not ready, skipping delete operation');
       return false;
     }
 
@@ -138,7 +140,6 @@ class RedisService {
 
   async flushPattern(pattern) {
     if (!this.isReady()) {
-      logger.warn('Redis not ready, skipping flush pattern operation');
       return false;
     }
 
@@ -158,7 +159,6 @@ class RedisService {
 
   async flushAll() {
     if (!this.isReady()) {
-      logger.warn('Redis not ready, skipping flush all operation');
       return false;
     }
 
@@ -174,7 +174,7 @@ class RedisService {
 
   async getStats() {
     if (!this.isReady()) {
-      return { connected: false, error: 'Redis not ready' };
+      return { connected: false, error: 'Redis not ready or disabled' };
     }
 
     try {
@@ -198,4 +198,7 @@ class RedisService {
   }
 }
 
-module.exports = new RedisService();
+// Criar instância única
+const redisService = new RedisService();
+
+module.exports = redisService;
