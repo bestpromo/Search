@@ -4,24 +4,18 @@ async function testRedisWithAuth() {
   console.log('🔐 Testando Redis com autenticação...');
   
   const client = redis.createClient({
-    host: 'search.bestpromo.live',
-    port: 6379,
-    password: '@Qa23ty67rf2332',
+    url: `redis://:@Qa23ty67rf2332@search.bestpromo.live:6379/0`,
     socket: {
-      connectTimeout: 15000,
+      connectTimeout: 30000,
       commandTimeout: 10000,
       lazyConnect: false,
       keepAlive: true,
-      noDelay: true
+      noDelay: true,
+      reconnectDelay: 2000
     },
-    retry_strategy: (options) => {
-      console.log('🔄 Tentativa de reconexão:', options.attempt);
-      if (options.attempt > 3) {
-        console.log('❌ Máximo de tentativas atingido');
-        return undefined;
-      }
-      return Math.min(options.attempt * 1000, 3000);
-    }
+    retryDelayOnFailover: 1000,
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: true
   });
 
   client.on('connect', () => {
