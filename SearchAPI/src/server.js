@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const routes = require('./routes');
 const logger = require('./utils/logger');
 const redisService = require('./utils/redis');
+const logRotator = require('./utils/logRotator');
 
 dotenv.config();
 
@@ -14,6 +15,9 @@ const PORT = process.env.PORT || 3000;
 redisService.connect().catch(err => {
   logger.error('Erro ao inicializar cache', { error: err.message });
 });
+
+// Inicializar rotação automática de logs
+logRotator.startAutoRotation(60); // Verificar a cada hora
 
 app.use(express.json());
 app.use('/', routes);

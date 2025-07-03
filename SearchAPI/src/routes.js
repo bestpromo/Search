@@ -3,6 +3,7 @@ const produtosController = require('./controllers/produtosController');
 const authController = require('./controllers/authController');
 const usersController = require('./controllers/usersController');
 const cacheController = require('./controllers/cacheController');
+const logController = require('./controllers/logController');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 const { requireAdmin, requireOwnerOrAdmin } = require('./middleware/roles');
 const { cacheMiddleware, checkCache, saveToCache } = require('./middleware/cache');
@@ -37,5 +38,10 @@ router.post('/cache/clear/produtos', authenticateToken, requireAdmin, cacheContr
 router.post('/cache/clear/all', authenticateToken, requireAdmin, cacheController.clearAllCache);
 router.get('/cache/key/:key', authenticateToken, requireAdmin, cacheController.getCacheValue);
 router.delete('/cache/key/:key', authenticateToken, requireAdmin, cacheController.deleteCacheKey);
+
+// Rotas de gerenciamento de logs (admin only)
+router.get('/logs/stats', authenticateToken, requireAdmin, logController.getLogStats);
+router.post('/logs/rotate', authenticateToken, requireAdmin, logController.forceLogRotation);
+router.patch('/logs/config', authenticateToken, requireAdmin, logController.updateLogConfig);
 
 module.exports = router;

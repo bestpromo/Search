@@ -1,20 +1,23 @@
 # Search API - Bestpromo
 
-API para busca de produtos em múltiplos marketplaces (Amazon, Shopee, Mercado Livre) com autenticação JWT.
+API para busca de produtos em múltiplos marketplaces (Amazon, Shopee, Mercado Livre) com autenticação JWT e cache Redis.
 
 ## 🚀 Funcionalidades
 
 - **Autenticação JWT** com access e refresh tokens
+- **Cache Redis** para performance otimizada
 - **Busca de produtos** em múltiplos marketplaces
 - **Controle de acesso** baseado em roles (admin/user)
 - **Gerenciamento de usuários** (admin only)
 - **Logs detalhados** com Winston
 - **Middleware de segurança** personalizado
+- **Gerenciamento de cache** com TTL configurável
 
 ## 📋 Requisitos
 
 - Node.js >= 14
 - npm ou yarn
+- Redis Server (local ou remoto)
 
 ## 🛠️ Instalação
 
@@ -56,6 +59,50 @@ MERCADOLIVRE_SITE_ID=MLB
 
 # Configuração JWT
 JWT_SECRET=sua-chave-jwt-super-secreta
+
+# Configuração Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=sua-senha-redis
+REDIS_DB=0
+CACHE_TTL=300
+REDIS_ENABLED=true
+```
+
+## 🔧 Redis Setup
+
+### Instalação Local (macOS)
+```bash
+# Instalar Redis via Homebrew
+brew install redis
+
+# Iniciar Redis
+brew services start redis
+
+# Testar conexão
+redis-cli ping
+```
+
+### Instalação Local (Ubuntu/Debian)
+```bash
+# Instalar Redis
+sudo apt update
+sudo apt install redis-server
+
+# Iniciar Redis
+sudo systemctl start redis-server
+sudo systemctl enable redis-server
+
+# Testar conexão
+redis-cli ping
+```
+
+### Configuração Remota
+Se usando Redis remoto, configure no `.env`:
+```env
+REDIS_HOST=seu-servidor-redis.com
+REDIS_PORT=6379
+REDIS_PASSWORD=sua-senha-forte
 ```
 
 ## 🔐 Autenticação
@@ -88,17 +135,87 @@ JWT_SECRET=sua-chave-jwt-super-secreta
 | GET | `/users/:id` | Obter usuário | Owner/Admin |
 | PATCH | `/users/:id/role` | Atualizar papel | Admin |
 
+### Endpoints de Cache (Admin)
+
+| Método | Endpoint | Descrição | Autenticação |
+|--------|----------|-----------|--------------|
+| GET | `/cache/stats` | Estatísticas do cache | Admin |
+| POST | `/cache/clear/produtos` | Limpar cache de produtos | Admin |
+| POST | `/cache/clear/all` | Limpar todo o cache | Admin |
+| GET | `/cache/key/:key` | Obter valor de chave específica | Admin |
+| DELETE | `/cache/key/:key` | Deletar chave específica | Admin |
+
+### Endpoints de Logs (Admin)
+
+| Método | Endpoint | Descrição | Autenticação |
+|--------|----------|-----------|--------------|
+| GET | `/logs/stats` | Estatísticas dos logs | Admin |
+| POST | `/logs/rotate` | Forçar rotação de logs | Admin |
+| PATCH | `/logs/config` | Configurar parâmetros de rotação | Admin |
+
+## 💾 Cache Redis
+
+O sistema utiliza Redis para cache com as seguintes características:
+
+- **TTL padrão**: 300 segundos (5 minutos)
+- **Chaves de cache**: `produtos:{termo}:{options}`
+- **Headers de cache**: `X-Cache: HIT|MISS`
+- **Fallback**: Se Redis não estiver disponível, a API funciona sem cache
+
+### Testando Cache
+
+```bash
+# Primeira busca (Cache MISS)
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3001/produtos?termo=notebook"
+
+# Segunda busca (Cache HIT)
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3001/produtos?termo=notebook"
+
+# Verificar estatísticas (Admin)
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3001/cache/stats"
+```
+
+### Testando Logs
+
+```bash
+# Estatísticas dos logs (Admin)
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3001/logs/stats"
+
+# Forçar rotação
+curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:3001/logs/rotate"
+
+# Configurar rotação
+curl -X PATCH -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"maxSizeMB": 100, "maxDays": 10}' \
+  "http://localhost:3001/logs/config"
+```
+
 ## 🧪 Testes
 
 ```bash
 # Teste automatizado
-node test-auth.js
+npm run test
 
 # Testes com curl
-./test-curl.sh
+npm run test:curl
+
+# Teste Redis
+npm run test:redis
+
+# Teste rotação de logs
+npm run test:logs
 
 # Gerar hash de senha
-node generate-password-hash.js minhasenha123
+npm run hash-password minhasenha123
+
+# Limpar logs antigos
+npm run clean-logs
 ```
 
 ## 📖 Documentação Completa
@@ -264,6 +381,30 @@ curl "http://localhost:3000/produtos?q=notebook"
 Os logs são salvos em:
 - `logs/combined.log` - Todos os logs
 - `logs/error.log` - Apenas erros
+
+## 📋 Gestão de Logs
+
+O sistema inclui rotação automática de logs baseada em tamanho e idade dos arquivos.
+
+### Configuração de Logs (.env)
+```env
+# Configuração de Rotação de Logs
+LOG_MAX_SIZE_MB=50          # Tamanho máximo em MB
+LOG_MAX_DAYS=7              # Idade máxima em dias
+LOG_ROTATION_ENABLED=true   # Habilitar rotação automática
+```
+
+### Funcionamento
+- **Verificação automática**: A cada hora
+- **Critério de rotação**: Tamanho OU idade excedidos
+- **Backup automático**: Arquivo original vira backup com timestamp
+- **Limpeza**: Backups antigos são removidos automaticamente
+
+### Exemplo de Rotação
+```
+combined.log (51MB) → combined-2025-07-03-14-18-05.log
+combined.log (0 bytes) - novo arquivo limpo
+```
 
 ## 🛠️ Tecnologias
 

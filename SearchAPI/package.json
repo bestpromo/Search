@@ -5,7 +5,13 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "test": "node test-auth.js",
+    "test:curl": "./test-curl.sh",
+    "test:redis": "node test-redis-auth.js",
+    "test:logs": "node scripts/test-log-rotation.js",
+    "hash-password": "node scripts/generate-password-hash.js",
+    "clean-logs": "./scripts/cleanup-logs.sh"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

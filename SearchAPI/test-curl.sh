@@ -3,7 +3,7 @@
 # Exemplos de uso da API com autenticação JWT
 # Execute este script para testar todos os endpoints
 
-API_BASE="http://localhost:3000"
+API_BASE="http://localhost:3001"
 
 echo "🚀 Testando API com autenticação JWT"
 echo "====================================="
